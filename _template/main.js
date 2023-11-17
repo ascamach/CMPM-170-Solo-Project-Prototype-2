@@ -1,111 +1,163 @@
-title = "BALANCE";
+title = "FROM TWO SIDES";
 
 description = `
 [Slide] Move
 `;
 
-characters = [];
+characters = [
+  `
+  B
+ BbB
+  B
+ `
+ ,
+  `
+ rrrrr
+  rrr
+   r
+ `,
+ `
+ r
+ rr
+ rrr
+ rr
+ r
+ `,
+ `
+ yyy
+ y y
+ yyy
+ `
+];
 
 options = {
-  theme: "shape",
+  theme: "pixel",
   isPlayingBgm: true,
   isReplayEnabled: true,
-  seed: 8,
+  seed: 9,
 };
 
-/** @type {{x: number, vx: number, angle: number, length: number, angleVel: number}} */
-let pillar;
-/** @type {{pos: Vector, vel: Vector}[]} */
-let coins;
-let nextCoinTicks;
-let coinX;
-let lx;
-let wind;
-const minLength = 20;
+/** @type {{pos:Vector, vy: number, wy: -1 | 1}[]} */
+let arrows;
+let nextArrowTicks;
+/** @type {{x: number, vx: number}[]} */
+let safes;
+
+/** 
+ * Define token object
+ */
+/** @type { object } */
+/** @type { Vector } */
+let tokens;
 
 function update() {
   if (!ticks) {
-    pillar = { x: 50, vx: 0, angle: 0, length: 20, angleVel: 0 };
-    coins = [];
-    nextCoinTicks = 0;
-    coinX = rnd() < 0.5 ? 20 : 80;
-    lx = 50;
-    wind = 0;
+    // Initialize variables
+    arrows = [];
+    nextArrowTicks = [0, 60];
+    safes = [
+      { x: 50, vx: -1 },
+      { x: 50, vx: 1 },
+    ];
+    tokens = [];
   }
-  color("light_black");
-  rect(-50, 90, 200, 10);
-  color("white");
-  rect(lx, 90, 1, 10);
-  const o = input.pos.x - pillar.x;
-  if (abs(o) < 99) {
-    pillar.vx += o * 0.005;
-  }
-  wind += rnds(0.01);
-  wind *= 0.98;
-  pillar.vx -= wind;
-  pillar.vx *= 0.95;
-  pillar.x += pillar.vx * difficulty;
-  pillar.angleVel -= pillar.vx * 0.002;
-  pillar.angleVel += pillar.angle * 0.0001 * pillar.length;
-  pillar.angleVel *= 1 - 0.1 * sqrt(difficulty);
-  pillar.angle += pillar.angleVel * difficulty;
-  const tp = vec(pillar.x, 90).addWithAngle(
-    pillar.angle - PI / 2,
-    pillar.length
-  );
-  const scr = (50 - tp.x) * 0.2;
-  lx = wrap(lx + scr, -5, 105);
-  pillar.x += scr;
-  tp.x += scr;
-  if (pillar.length < minLength) {
-    end();
-  }
-  color("black");
-  bar(pillar.x, 90, pillar.length, 3, pillar.angle - PI / 2, 0);
-  color("red");
-  bar(
-    pillar.x,
-    90,
-    clamp(pillar.length, 0, minLength),
-    3,
-    pillar.angle - PI / 2,
-    0
-  );
-  color("purple");
-  if (box(tp, 5).isColliding.rect.light_black) {
-    play("explosion");
-    pillar.length /= 2;
-    pillar.angleVel *= -0.5;
-    if (pillar.length >= minLength) {
-      pillar.angle /= 2;
+  
+
+  // Create safe zones in each spike layer
+  safes.forEach((s) => {
+    s.x += s.vx;
+    if ((s.x < 9 && s.vx < 0) || (s.x > 90 && s.vx > 0)) {
+      s.vx *= -1;
     }
-  }
-  nextCoinTicks--;
-  if (nextCoinTicks < 0) {
-    coins.push({ pos: vec(coinX, -3), vel: vec(rnds(1), 0) });
-    coinX = wrap(coinX + rnds(1) + scr, -20, 120);
-    nextCoinTicks = 5;
-  }
-  color("yellow");
-  remove(coins, (c) => {
-    c.vel.x += wind / 2;
-    c.pos.add(c.vel);
-    c.pos.x += scr;
-    c.vel.y += 0.03;
-    c.vel.mul(0.98);
-    const cl = box(c.pos, 5).isColliding.rect;
-    if (cl.black || cl.red || cl.purple) {
-      play(cl.purple ? "powerUp" : "coin");
-      times(cl.purple ? 3 : 1, (i) => {
-        addScore(ceil(pillar.length), c.pos.x, c.pos.y - i * 6);
-        if (pillar.length < 64) {
-          pillar.length++;
+    s.vx += rnds(0.5);
+    s.vx *= 0.98;
+  });
+  
+
+  // Add spikes layers
+  for (let i = 0; i < 2; i++) {
+    nextArrowTicks[i]--;
+    if (nextArrowTicks[i] < 0) {
+      play("explosion");
+      const w = rnd(10, 40) / sqrt(difficulty) + 10;
+      times(15, (xi) => {
+        const x = xi * 6 + 2;
+        let isSafe = false;
+
+        // Creates safe zones for the player to pass through
+        safes.forEach((s) => {
+          isSafe = isSafe || abs(x - s.x) < w / 2;
+        });
+
+        // Add spikes to the screen
+        if (!isSafe) {
+          arrows.push({
+            pos: vec(x, i === 0 ? -3 : 103),
+            vy: 0,
+            wy: i === 0 ? 1 : -1,
+          });
+          addScore(1);
         }
       });
-      return true;
+      nextArrowTicks[i] = rnd(50, 90) / sqrt(difficulty);
     }
-    if (cl.light_black) {
-      return true;
+  }
+
+  // Create token on the screen
+  if (tokens.length === 0) {
+    const tokenX = rnd(0, 90);
+    const tokenY = rnd(0, 90);
+    tokens.push({
+      pos: vec(tokenX, tokenY)
+    });
+  }  
+
+  // Scaling difficulty
+  const s = difficulty * 2;
+
+  // Remove arrows if they appear offscreen
+  remove(arrows, (arrow) => {
+    arrow.vy += (arrow.wy * s - arrow.vy) * 0.02;
+    arrow.pos.y += arrow.vy;
+
+    // Create spikes and mirrors of them on the opposite side of the screen
+    if (arrow.wy > 0) {
+      char("b", arrow.pos.x, arrow.pos.y);
+      char("c", arrow.pos.y, arrow.pos.x);
+    } else {
+      char("b", arrow.pos.x, arrow.pos.y, { mirror: { y: -1 } });
+      char("c", arrow.pos.y, arrow.pos.x, { mirror: { x: -1 } });
     }
+    color("red");
+    color("black");
+    return arrow.pos.y < -3 || arrow.pos.y > 103;
   });
+  const x = clamp(input.pos.x, 1, 98);
+  const y = clamp(input.pos.y, 1, 98);
+
+  // Initialize player variable
+  const player = char("a", x, y).isColliding.char;
+
+  // Remove token if colliding with player
+  remove(tokens, (t) => {
+    // Initialize token object
+    const token = char("d", t.pos).isColliding.char;
+
+    // Check for collision with player
+    // If collided, add to score and play sound effect
+    if (token.a) {
+      play("coin");
+      addScore(100);
+    }
+
+    // Return value to respawn token if collected
+    return (token.a);
+  });
+
+  // Check if player collided with spikes
+  // End game if so
+  if (player.b || player.c) {
+    play("powerUp");
+    end();
+  }
 }
