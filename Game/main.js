@@ -1,4 +1,4 @@
-title = "FROM TWO SIDES";
+title = "Four Sides";
 
 description = `
 [Slide] Move
